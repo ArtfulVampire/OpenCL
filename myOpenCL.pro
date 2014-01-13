@@ -14,5 +14,7 @@ CONFIG   -= app_bundle
 
 TEMPLATE = app
 
+LIBS += -L/usr/lib/x86_64-linux-gnu -lOpenCL
+
 
 SOURCES += main.cpp

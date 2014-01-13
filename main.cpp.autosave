@@ -34,7 +34,7 @@ int main(int argc, char ** argv)
 //    CL_PLATFORM_NOT_FOUND_KHR;
     CL_FALSE;
     error = clGetPlatformIDs( 1, &platform, &numOfPlatforms );
-    cout << "numOfPlatforms = " << numOfPlatforms << endl;
+//    cout << "numOfPlatforms = " << numOfPlatforms << endl;
     if(error != CL_SUCCESS)
     {
        cout << "Error getting platform id: " << errorMessage(error) << endl;
