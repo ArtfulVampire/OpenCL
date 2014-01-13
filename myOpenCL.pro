@@ -18,3 +18,6 @@ LIBS += -L/usr/lib/x86_64-linux-gnu -lOpenCL
 
 
 SOURCES += main.cpp
+
+OTHER_FILES += \
+    kernel.cl
