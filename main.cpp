@@ -1,4 +1,3 @@
-// A minimalist OpenCL program.
 #include <CL/cl.h>
 #include <stdio.h>
 #include <iostream>
@@ -6,7 +5,7 @@
 #include <ctime>
 #define NWITEMS 512
 
-#pragma OPENCL EXTENSION cl_khr_icd : enable
+#pragma OPENCL EXTENSION all : enable
 
 using namespace std;
 
@@ -18,6 +17,7 @@ int main(int argc, char ** argv)
     cl_int error = 0;
     cl_platform_id platform;
     cl_uint numOfPlatforms;
+    cl_int compute_units;
     int dev, nw;
     int NDEVS = 2;
     cl_device_type devs[NDEVS];
@@ -41,287 +41,418 @@ int main(int argc, char ** argv)
         min = src_ptr[i] < min ? src_ptr[i] : min;
     }
 
-    error = clGetPlatformIDs( 1, &platform, &numOfPlatforms );
+
+    error = clGetPlatformIDs( 1, &platform, NULL);
     if(error != CL_SUCCESS)
     {
-       cout << "Error getting platform id: " << errorMessage(error) << endl;
+       cout << "Error getting platform id: " << error << endl;
        exit(error);
     }
 
 
-//    // 2. Find a gpu device.
-//    cl_device_id device;
+    // 2. Find a gpu device.
+    cl_device_id device;
 
-//    error = clGetDeviceIDs( platform, CL_DEVICE_TYPE_GPU,
-//                    1,
-//                    &device,
-//                    NULL); //error
-//    if(error != CL_SUCCESS)
-//    {
-//       cout << "Error getting device ids: " << errorMessage(error) << endl;
-//       exit(error);
-//    }
-
-
-//    // 3. Create a context and command queue on that device.
-//    cl_context context = clCreateContext( NULL,
-//                                          1,
-//                                          &device,
-//                                          NULL, NULL, &error);
-//    if(error != CL_SUCCESS)
-//    {
-//       cout << "Error creating context: " << errorMessage(error) << endl;
-//       exit(error);
-//    }
-
-
-//    cl_command_queue queue = clCreateCommandQueue( context,
-//                                                   device,
-//                                                   0, &error );
-//    if(error != CL_SUCCESS)
-//    {
-//       cout << "Error creating command queue: " << errorMessage(error) << endl;
-//       exit(error);
-//    }
-
-//    const char *source = (const char*)kernelFromFile("/home/michael/Qt/Projects/myOpenCL/kernel.cl");
-
-//    // 4. Perform runtime source compilation, and obtain kernel entry point.
-//    cl_program program = clCreateProgramWithSource( context,
-//                                                    1,
-//                                                    &source,
-//                                                    NULL, NULL );
-//    clBuildProgram( program, 1, &device, NULL, NULL, NULL );
-
-//    cl_kernel kernel = clCreateKernel( program, "memset", NULL );
-
-
-//    // 5. Create a data buffer.
-//    cl_mem buffer = clCreateBuffer( context,
-//                                    CL_MEM_WRITE_ONLY,
-//                                    NWITEMS * sizeof(cl_uint),
-//                                    NULL, NULL );
-
-//    // 6. Launch the kernel. Let OpenCL pick the local work size.
-//    size_t global_work_size = NWITEMS;
-//    clSetKernelArg(kernel, 0, sizeof(buffer), (void*) &buffer);
-
-//    QTime myTime;
-//    myTime.start();
-
-//    clEnqueueNDRangeKernel( queue,
-//                            kernel,
-//                            1,
-//                            NULL,
-//                            &global_work_size,
-//                            NULL, 0, NULL, NULL);
-//    clFinish( queue );
-
-//    // 7. Look at the results via synchronous buffer map.
-//    cl_uint *ptr;
-//    ptr = (cl_uint *) clEnqueueMapBuffer( queue,
-//                                          buffer,
-//                                          CL_TRUE,
-//                                          CL_MAP_READ,
-//                                          0,
-//                                          NWITEMS * sizeof(cl_uint),
-//                                          0, NULL, NULL, NULL );
-
-//    for(int i = 0; i < NWITEMS; i++)
-//    {
-//        cout << i << '\t' << ptr[i] << endl;
-//    }
-//    cout << "time elapsed = " << myTime.elapsed() << endl;
-
-    for(int dev = 0; dev < NDEVS; ++dev)
+    error = clGetDeviceIDs( platform, CL_DEVICE_TYPE_CPU,
+                    1,
+                    &device,
+                    NULL); //error
+    if(error != CL_SUCCESS)
     {
-        cout << "asdasd" << endl;
-        cl_device_id device;
-        cl_context context;
-        cl_command_queue queue;
-        cl_program program;
-        cl_kernel minp;
-        cl_kernel reduce;
-        cl_mem src_buf;
-        cl_mem dst_buf;
-        cl_mem dbg_buf;
-        cl_uint *dst_ptr,
-                *dbg_ptr;
-        cout << (dev == 0 ? "CPU" : "GPU") << endl;
-
-        // Find the device.
-        error = clGetDeviceIDs( platform,
-                        devs[dev],
-                        1,
-                        &device,
-                        NULL);
-        if(error != CL_SUCCESS)
-        {
-            cout << "Error getting device ids: " << errorMessage(error) << endl;
-            exit(error);
-        }
-
-
-        // 4. Compute work sizes.
-        cl_uint compute_units;
-        size_t global_work_size;
-        size_t local_work_size;
-        size_t num_groups;
-        error = clGetDeviceInfo( device,
-                         CL_DEVICE_MAX_COMPUTE_UNITS,
-                         sizeof(cl_uint),
-                         &compute_units,
-                         NULL);
-
-        if(error != CL_SUCCESS)
-        {
-            cout << "Error getting device info: " << errorMessage(error) << endl;
-            exit(error);
-        }
-
-        if( devs[dev] == CL_DEVICE_TYPE_CPU )
-        {
-            global_work_size = compute_units * 1; // 1 thread per core
-            local_work_size = 1;
-        }
-        else
-        {
-            cl_uint ws = 64;
-            global_work_size = compute_units * 7 * ws; // 7 wavefronts per SIMD
-            while( (num_src_items / 4) % global_work_size != 0 )
-                global_work_size += ws;  //??????????????????????????????????
-            local_work_size = ws;
-        }
-        num_groups = global_work_size / local_work_size;
-
-        // Create a context and command queue on that device.
-        context = clCreateContext( NULL,
-                                   1,
-                                   &device,
-                                   NULL, NULL, NULL);
-        queue = clCreateCommandQueue(context,
-                                     device,
-                                     0, NULL);
-        // Minimal error check.
-        if( queue == NULL )
-        {
-            cout << "Compute device setup failed" << endl; ;
-            return(-1);
-        }
-        // Perform runtime source compilation, and obtain kernel entry point.
-        const char *kernel_source = (const char*)kernelFromFile("/home/michael/Qt/Projects/myOpenCL/kernel.cl");
-        cl_int ret = 0;
-        program = clCreateProgramWithSource( context,
-                                             1,
-                                             &kernel_source,
-                                             NULL, &ret );
-        //Tell compiler to dump intermediate .il and .isa GPU files.
-        // 5. Print compiler error messages
-        if(ret != CL_SUCCESS)
-        {
-            cout << "clBuildProgram failed: " << errorMessage(ret) << endl;
-            char buf[0x10000];
-            clGetProgramBuildInfo( program,
-                                   device,
-                                   CL_PROGRAM_BUILD_LOG,
-                                   0x10000,
-                                   buf,
-                                   NULL);
-            printf("\n%s\n", buf);
-            return(-1);
-        }
-
-        minp = clCreateKernel( program, "minp", &error );
-
-        if (error != CL_SUCCESS)
-        {
-            cout << "Cannot create kernel minp: " << errorMessage(error) << endl;
-            exit(-1);
-        }
-        reduce = clCreateKernel( program, "reduce", &error );
-        if (error != CL_SUCCESS)
-        {
-            cout << "Cannot create kernel reduce: " << errorMessage(error) << endl;
-            exit(-1);
-        }
-
-        // Create input, output and debug buffers.
-
-        src_buf = clCreateBuffer( context,
-                                  CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-                                  num_src_items * sizeof(cl_uint),
-                                  src_ptr,
-                                  NULL );
-        dst_buf = clCreateBuffer( context,
-                                  CL_MEM_READ_WRITE,
-                                  num_groups * sizeof(cl_uint),
-                                  NULL, NULL );
-        dbg_buf = clCreateBuffer( context,
-                                  CL_MEM_WRITE_ONLY,
-                                  global_work_size * sizeof(cl_uint),
-                                  NULL, NULL );
-
-        clSetKernelArg(minp, 0, sizeof(void *), (void*) &src_buf);
-        clSetKernelArg(minp, 1, sizeof(void *), (void*) &dst_buf);
-        clSetKernelArg(minp, 2, 1*sizeof(cl_uint), (void*) NULL);
-        clSetKernelArg(minp, 3, sizeof(void *), (void*) &dbg_buf);
-        clSetKernelArg(minp, 4, sizeof(num_src_items), (void*) &num_src_items);
-        clSetKernelArg(minp, 5, sizeof(dev), (void*) &dev);
-        clSetKernelArg(reduce, 0, sizeof(void *), (void*) &src_buf);
-        clSetKernelArg(reduce, 1, sizeof(void *), (void*) &dst_buf);
-        QTime myTime;
-        myTime.start();
-        // 6. Main timing loop.
-#define NLOOPS 500
-
-        cl_event ev;
-        int nloops = NLOOPS;
-        while(nloops--)
-        {
-            clEnqueueNDRangeKernel( queue,
-                                    minp,
-                                    1,
-                                    NULL,
-                                    &global_work_size,
-                                    &local_work_size,
-                                    0, NULL, &ev);
-            clEnqueueNDRangeKernel( queue,
-                                    reduce,
-                                    1,
-                                    NULL,
-                                    &num_groups,
-                                    NULL, 1, &ev, NULL);
-        }
-        clFinish( queue );
-
-        printf("B/W %.2f GB/sec, ", ((float) num_src_items *
-                                     sizeof(cl_uint) * NLOOPS) /
-               double(myTime.elapsed()) / 1e9 );
-        // 7. Look at the results via synchronous buffer map.
-        dst_ptr = (cl_uint *) clEnqueueMapBuffer( queue,
-                                                  dst_buf,
-                                                  CL_TRUE,
-                                                  CL_MAP_READ,
-                                                  0,
-                                                  num_groups * sizeof(cl_uint),
-                                                  0, NULL, NULL, NULL );
-        dbg_ptr = (cl_uint *) clEnqueueMapBuffer( queue,
-                                                  dbg_buf,
-                                                  CL_TRUE,
-                                                  CL_MAP_READ,
-                                                  0,
-                                                  global_work_size *
-                                                  sizeof(cl_uint),
-                                                  0, NULL, NULL, NULL );
-        // 8. Print some debug info.
-        printf("%d groups, %d threads, count %d, stride %d\n", dbg_ptr[0],
-                dbg_ptr[1],
-                dbg_ptr[2],dbg_ptr[3] );
-        if( dst_ptr[0] == min )
-            printf("result correct\n");
-        else
-            printf("result INcorrect\n");
+       cout << "Error getting device ids: " << errorMessage(error) << endl;
+       exit(error);
     }
+
+    error = clGetDeviceInfo( device,
+                             CL_DEVICE_MAX_COMPUTE_UNITS,
+                             sizeof(cl_uint),
+                             &compute_units,
+                             NULL);
+    if(error != CL_SUCCESS)
+    {
+       cout << "Cannot count compute units: " << errorMessage(error) << endl;
+       exit(error);
+    }
+    else
+    {
+        cout << "Number of Compute units = " << compute_units << endl;
+    }
+
+    cl_uint max_dim;
+    error = clGetDeviceInfo( device,
+                             CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS,
+                             sizeof(cl_uint),
+                             &max_dim,
+                             NULL);
+    if(error != CL_SUCCESS)
+    {
+       cout << "Cannot count dimensions: " << errorMessage(error) << endl;
+       exit(error);
+    }
+    else
+    {
+        cout << "Maximal dimensionality = " << max_dim << endl;
+    }
+
+    char* builtInKernels = new char [10000];
+    error = clGetDeviceInfo( device,
+                             CL_DEVICE_BUILT_IN_KERNELS,
+                             sizeof(char)*10000,
+                             builtInKernels,
+                             NULL);
+    if(error != CL_SUCCESS)
+    {
+       cout << "Cannot get builtInKernels: " << errorMessage(error) << endl;
+       exit(error);
+    }
+    else
+    {
+        cout << "builtInKernels = " << builtInKernels << endl;
+    }
+    delete []builtInKernels;
+
+    cl_device_fp_config doubleSupp;
+    error = clGetDeviceInfo( device,
+                             CL_DEVICE_DOUBLE_FP_CONFIG,
+                             sizeof(cl_device_fp_config),
+                             (void*) &doubleSupp,
+                             NULL);
+    if(error != CL_SUCCESS)
+    {
+       cout << "Cannot get double support: " << errorMessage(error) << endl;
+       exit(error);
+    }
+    else
+    {
+        cout << "double support = " << doubleSupp << endl;
+        CL_FP_DENORM;
+        CL_FP_INF_NAN;
+        CL_FP_ROUND_TO_NEAREST;
+        CL_FP_ROUND_TO_ZERO;
+        CL_FP_ROUND_TO_INF;
+//        CP_FP_FMA;
+        CL_FP_SOFT_FLOAT;
+    }
+
+    char* extensions = new char [10000];
+    error = clGetDeviceInfo( device,
+                             CL_DEVICE_EXTENSIONS,
+                             sizeof(char) * 10000,
+                             extensions,
+                             NULL);
+    if(error != CL_SUCCESS)
+    {
+       cout << "Cannot get extensions: " << errorMessage(error) << endl;
+       exit(error);
+    }
+    else
+    {
+        cout << "extensions = " << extensions << endl;
+    }
+    delete []extensions;
+
+
+    char* version = new char [300];
+    error = clGetDeviceInfo( device,
+                             CL_DEVICE_OPENCL_C_VERSION,
+                             sizeof(char) * 300,
+                             version,
+                             NULL);
+    if(error != CL_SUCCESS)
+    {
+       cout << "Cannot get version: " << errorMessage(error) << endl;
+       exit(error);
+    }
+    else
+    {
+        cout << "version = " << version << endl;
+    }
+    delete []version;
+
+
+    char* deviceName = new char [300];
+    error = clGetDeviceInfo( device,
+                             CL_DEVICE_NAME,
+                             sizeof(char) * 300,
+                             deviceName,
+                             NULL);
+    if(error != CL_SUCCESS)
+    {
+       cout << "Cannot get deviceName: " << errorMessage(error) << endl;
+       exit(error);
+    }
+    else
+    {
+        cout << "deviceName = " << deviceName << endl;
+    }
+    delete []deviceName;
+
+
+    return 0;
+
+
+
+    // 3. Create a context and command queue on that device.
+    cl_context context = clCreateContext( NULL,
+                                          1,
+                                          &device,
+                                          NULL, NULL, &error);
+    if(error != CL_SUCCESS)
+    {
+       cout << "Error creating context: " << errorMessage(error) << endl;
+       exit(error);
+    }
+
+
+    cl_command_queue queue = clCreateCommandQueue( context,
+                                                   device,
+                                                   0, &error );
+    if(error != CL_SUCCESS)
+    {
+       cout << "Error creating command queue: " << errorMessage(error) << endl;
+       exit(error);
+    }
+
+    const char *source = (const char*)kernelFromFile("/home/michael/Qt/Projects/myOpenCL/kernel.cl");
+
+    // 4. Perform runtime source compilation, and obtain kernel entry point.
+    cl_program program = clCreateProgramWithSource( context,
+                                                    1,
+                                                    &source,
+                                                    NULL, NULL );
+    clBuildProgram( program, 1, &device, NULL, NULL, NULL );
+
+    cl_kernel kernel = clCreateKernel( program, "memset", NULL );
+
+
+    // 5. Create a data buffer.
+    cl_mem buffer = clCreateBuffer( context,
+                                    CL_MEM_WRITE_ONLY,
+                                    NWITEMS * sizeof(cl_uint),
+                                    NULL, NULL );
+
+//    cout << "wat" << endl;
+    // 6. Launch the kernel. Let OpenCL pick the local work size.
+    size_t global_work_size = NWITEMS;
+
+    clSetKernelArg(kernel, 0, sizeof(void *), (void*) &buffer);
+
+    QTime myTime;
+    myTime.start();
+
+    error = clEnqueueNDRangeKernel( queue,
+                            kernel,
+                            1,
+                            NULL,
+                            &global_work_size,
+                            NULL, 0, NULL, NULL);
+    clFinish( queue );
+
+    // 7. Look at the results via synchronous buffer map.
+    cl_uint *ptr;
+    ptr = (cl_uint *) clEnqueueMapBuffer( queue,
+                                          buffer,
+                                          CL_TRUE,
+                                          CL_MAP_READ,
+                                          0,
+                                          NWITEMS * sizeof(cl_uint),
+                                          0, NULL, NULL, NULL );
+
+    for(int i = 0; i < NWITEMS; i++)
+    {
+        cout << i << '\t' << ptr[i] << endl;
+    }
+    cout << "time elapsed = " << myTime.elapsed() << endl;
+
+//    for(int dev = 0; dev < NDEVS; ++dev)
+//    {
+//        cout << "asdasd" << endl;
+//        cl_device_id device;
+//        cl_context context;
+//        cl_command_queue queue;
+//        cl_program program;
+//        cl_kernel minp;
+//        cl_kernel reduce;
+//        cl_mem src_buf;
+//        cl_mem dst_buf;
+//        cl_mem dbg_buf;
+//        cl_uint *dst_ptr,
+//                *dbg_ptr;
+//        cout << (dev == 0 ? "CPU" : "GPU") << endl;
+
+//        // Find the device.
+//        error = clGetDeviceIDs( platform,
+//                        devs[dev],
+//                        1,
+//                        &device,
+//                        NULL);
+//        if(error != CL_SUCCESS)
+//        {
+//            cout << "Error getting device ids: " << errorMessage(error) << endl;
+//            exit(error);
+//        }
+
+
+//        // 4. Compute work sizes.
+//        cl_uint compute_units;
+//        size_t global_work_size;
+//        size_t local_work_size;
+//        size_t num_groups;
+//        error = clGetDeviceInfo( device,
+//                         CL_DEVICE_MAX_COMPUTE_UNITS,
+//                         sizeof(cl_uint),
+//                         &compute_units,
+//                         NULL);
+
+//        if(error != CL_SUCCESS)
+//        {
+//            cout << "Error getting device info: " << errorMessage(error) << endl;
+//            exit(error);
+//        }
+
+//        if( devs[dev] == CL_DEVICE_TYPE_CPU )
+//        {
+//            global_work_size = compute_units * 1; // 1 thread per core
+//            local_work_size = 1;
+//        }
+//        else
+//        {
+//            cl_uint ws = 64;
+//            global_work_size = compute_units * 7 * ws; // 7 wavefronts per SIMD
+//            while( (num_src_items / 4) % global_work_size != 0 )
+//                global_work_size += ws;  //??????????????????????????????????
+//            local_work_size = ws;
+//        }
+//        num_groups = global_work_size / local_work_size;
+
+//        // Create a context and command queue on that device.
+//        context = clCreateContext( NULL,
+//                                   1,
+//                                   &device,
+//                                   NULL, NULL, NULL);
+//        queue = clCreateCommandQueue(context,
+//                                     device,
+//                                     0, NULL);
+//        // Minimal error check.
+//        if( queue == NULL )
+//        {
+//            cout << "Compute device setup failed" << endl; ;
+//            return(-1);
+//        }
+//        // Perform runtime source compilation, and obtain kernel entry point.
+//        const char *kernel_source = (const char*)kernelFromFile("/home/michael/Qt/Projects/myOpenCL/kernel.cl");
+//        cl_int ret = 0;
+//        program = clCreateProgramWithSource( context,
+//                                             1,
+//                                             &kernel_source,
+//                                             NULL, &ret );
+//        //Tell compiler to dump intermediate .il and .isa GPU files.
+//        // 5. Print compiler error messages
+//        if(ret != CL_SUCCESS)
+//        {
+//            cout << "clBuildProgram failed: " << errorMessage(ret) << endl;
+//            char buf[0x10000];
+//            clGetProgramBuildInfo( program,
+//                                   device,
+//                                   CL_PROGRAM_BUILD_LOG,
+//                                   0x10000,
+//                                   buf,
+//                                   NULL);
+//            printf("\n%s\n", buf);
+//            return(-1);
+//        }
+
+//        minp = clCreateKernel( program, "minp", &error );
+
+//        if (error != CL_SUCCESS)
+//        {
+//            cout << "Cannot create kernel minp: " << errorMessage(error) << endl;
+//            exit(-1);
+//        }
+//        reduce = clCreateKernel( program, "reduce", &error );
+//        if (error != CL_SUCCESS)
+//        {
+//            cout << "Cannot create kernel reduce: " << errorMessage(error) << endl;
+//            exit(-1);
+//        }
+
+//        // Create input, output and debug buffers.
+
+//        src_buf = clCreateBuffer( context,
+//                                  CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+//                                  num_src_items * sizeof(cl_uint),
+//                                  src_ptr,
+//                                  NULL );
+//        dst_buf = clCreateBuffer( context,
+//                                  CL_MEM_READ_WRITE,
+//                                  num_groups * sizeof(cl_uint),
+//                                  NULL, NULL );
+//        dbg_buf = clCreateBuffer( context,
+//                                  CL_MEM_WRITE_ONLY,
+//                                  global_work_size * sizeof(cl_uint),
+//                                  NULL, NULL );
+
+//        clSetKernelArg(minp, 0, sizeof(void *), (void*) &src_buf);
+//        clSetKernelArg(minp, 1, sizeof(void *), (void*) &dst_buf);
+//        clSetKernelArg(minp, 2, 1*sizeof(cl_uint), (void*) NULL);
+//        clSetKernelArg(minp, 3, sizeof(void *), (void*) &dbg_buf);
+//        clSetKernelArg(minp, 4, sizeof(num_src_items), (void*) &num_src_items);
+//        clSetKernelArg(minp, 5, sizeof(dev), (void*) &dev);
+//        clSetKernelArg(reduce, 0, sizeof(void *), (void*) &src_buf);
+//        clSetKernelArg(reduce, 1, sizeof(void *), (void*) &dst_buf);
+//        QTime myTime;
+//        myTime.start();
+//        // 6. Main timing loop.
+//#define NLOOPS 500
+
+//        cl_event ev;
+//        int nloops = NLOOPS;
+//        while(nloops--)
+//        {
+//            clEnqueueNDRangeKernel( queue,
+//                                    minp,
+//                                    1,
+//                                    NULL,
+//                                    &global_work_size,
+//                                    &local_work_size,
+//                                    0, NULL, &ev);
+//            clEnqueueNDRangeKernel( queue,
+//                                    reduce,
+//                                    1,
+//                                    NULL,
+//                                    &num_groups,
+//                                    NULL, 1, &ev, NULL);
+//        }
+//        clFinish( queue );
+
+//        printf("B/W %.2f GB/sec, ", ((float) num_src_items *
+//                                     sizeof(cl_uint) * NLOOPS) /
+//               double(myTime.elapsed()) / 1e9 );
+//        // 7. Look at the results via synchronous buffer map.
+//        dst_ptr = (cl_uint *) clEnqueueMapBuffer( queue,
+//                                                  dst_buf,
+//                                                  CL_TRUE,
+//                                                  CL_MAP_READ,
+//                                                  0,
+//                                                  num_groups * sizeof(cl_uint),
+//                                                  0, NULL, NULL, NULL );
+//        dbg_ptr = (cl_uint *) clEnqueueMapBuffer( queue,
+//                                                  dbg_buf,
+//                                                  CL_TRUE,
+//                                                  CL_MAP_READ,
+//                                                  0,
+//                                                  global_work_size *
+//                                                  sizeof(cl_uint),
+//                                                  0, NULL, NULL, NULL );
+//        // 8. Print some debug info.
+//        printf("%d groups, %d threads, count %d, stride %d\n", dbg_ptr[0],
+//                dbg_ptr[1],
+//                dbg_ptr[2],dbg_ptr[3] );
+//        if( dst_ptr[0] == min )
+//            printf("result correct\n");
+//        else
+//            printf("result INcorrect\n");
+//    }
 
 
     return 0;

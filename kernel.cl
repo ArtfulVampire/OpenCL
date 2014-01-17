@@ -1,6 +1,11 @@
 #pragma OPENCL EXTENSION cl_khr_local_int32_extended_atomics : enable
 #pragma OPENCL EXTENSION cl_khr_global_int32_extended_atomics : enable
 
+__kernel void memset( __global uint *dst )
+{
+dst[get_global_id(0)] = get_global_id(0);
+}
+
 __kernel void minp( __global uint4 *src,
 __global uint *gmin,
 __local uint *lmin,

@@ -14,7 +14,9 @@ CONFIG   -= app_bundle
 
 TEMPLATE = app
 
-LIBS += -L/usr/lib/x86_64-linux-gnu -lOpenCL
+
+LIBS += -L/opt/intel/opencl-1.2-3.2.1.16712/lib64 -lOpenCL
+LIBS += -L/usr/lib/x86_64-linux-gnu
 
 
 SOURCES += main.cpp
