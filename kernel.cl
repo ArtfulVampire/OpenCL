@@ -4,12 +4,11 @@ __kernel void leaveOneOut(
 constant double * params0,
 global double * matrix, //NumberOfVectors * (NetLength+2),
 constant int * params1,
-global double * weight, //NumberOfClasses * (NetLength+1)
-/*private*/ global int * mixNum,
-/*private*/ global double * output,
+private double * weight, //NumberOfClasses * (NetLength+1)
+local int * mixNum,
+local double * output,
 global int * answer,
 global double * outError,
-/*private*/ global double * outputClass,
 global double * NumberOfErrors,
 constant int * randArr)
 {
@@ -119,29 +118,29 @@ constant int * randArr)
             currentError=sqrt(currentError);
             ++epoch;
         }
-}
-/*
+
+}/*
 
     type = matrix[get_global_id(0) * (NetLength+2) + NetLength+1];
     for(int j = 0; j < NumOfClasses; ++j) //calculate output //2 = numberOfTypes
     {
-        outputClass[j] = 0.;
+        output[j] = 0.;
         for(int i = 0; i < NetLength; ++i)
         {
-            outputClass[j]+=weight[j * (NetLength+1) + i] * matrix[get_global_id(0) * (NetLength+2) + i];
+            output[j]+=weight[j * (NetLength+1) + i] * matrix[get_global_id(0) * (NetLength+2) + i];
         }
-        outputClass[j] += weight[j * (NetLength+1) + NetLength] * matrix[get_global_id(0) * (NetLength+2) + NetLength];
-    //    outputClass[j] = logistic(outputClass[j], temp); // unlinear conformation
-        outputClass[j] = 1. / ( 1. + exp(-outputClass[j] / temp) );
+        output[j] += weight[j * (NetLength+1) + NetLength] * matrix[get_global_id(0) * (NetLength+2) + NetLength];
+    //    output[j] = logistic(output[j], temp); // unlinear conformation
+        output[j] = 1. / ( 1. + exp(-output[j] / temp) );
     }
     bool right = 1;
-    double outp = outputClass[type];
+    double outp = output[type];
     for(int k = 0; k < NumOfClasses; ++k)
     {
-        if(k != type && outputClass[k] >= outp)
+        if(k != type && output[k] >= outp)
         {
             right = false;
-            outp = outputClass[k];
+            outp = output[k];
         }
     }
     if(!right && matrix[get_global_id(0) * (NetLength+2) + NetLength+1]!=1.5) ++NumberOfErrors[type]; //generality
@@ -150,14 +149,16 @@ constant int * randArr)
     {
         if(k!=type)
         {
-            outError[get_global_id(0)] += (outputClass[k] * outputClass[k]);
+            outError[get_global_id(0)] += (output[k] * output[k]);
         }
         else
         {
-            outError[get_global_id(0)] += (1. - outputClass[k]) * (1. - outputClass[k]);
+            outError[get_global_id(0)] += (1. - output[k]) * (1. - output[k]);
         }
     }
     outError[get_global_id(0)] = sqrt(outError[get_global_id(0)]);
     answer[get_global_id(0)] = right; //return value
+
 }
+
 */

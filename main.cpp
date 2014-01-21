@@ -548,11 +548,11 @@ int main()
         cout << "Cannot create program : " << errorMessage(clError) << endl;
         exit(clError);
     }
-
     cout << "start build program" << endl;
-    clError = clBuildProgram( program, 1, &device, NULL, NULL, NULL);
 
-    cout << "clBuildProgram: " << errorMessage(clError) << endl;
+    clError = clBuildProgram( program, 1, &device, NULL, NULL, NULL); //read the options
+
+//    cout << "clBuildProgram: " << errorMessage(clError) << endl;
     char *buf = new char [0x10000];
     clGetProgramBuildInfo( program,
                            device,
@@ -803,24 +803,24 @@ int main()
     myTime.restart();
 
 
+//    constant double * params0,
+//    global double * matrix, //NumberOfVectors * (NetLength+2),
+//    constant int * params1,
+//    global double * weight, //NumberOfClasses * (NetLength+1), too big for private or local
+//    global int * answer,
+//    global double * outError,
+//    global double * NumberOfErrors,
+//    constant int * randArr
 
     int argCounter = 0;
     clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(params0Buf), (void*) &params0Buf);
-//    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(ecritBuf), (void*) &ecritBuf);
-//    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(lrateBuf), (void*) &lrateBuf);
-//    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(errorBuf), (void*) &errorBuf);
-//    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(tempBuf), (void*) &tempBuf);
     clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(matrixBuf), (void*) &matrixBuf);
     clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(params1Buf), (void*) &params1Buf);
-//    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(numOfVectsBuf), (void*) &numOfVectsBuf);
-//    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(numOfClassesBuf), (void*) &numOfClassesBuf);
-//    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(netLengthBuf), (void*) &netLengthBuf);
     clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(weightBuf), (void*) &weightBuf);
-    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(mixNumBuf), (void*) &mixNumBuf);
-    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(outputBuf), (void*) &outputBuf);
+    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(int) * NumberOfVectors, NULL);
+    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(double) * 3, NULL);
     clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(answerBuf), (void*) &answerBuf);
     clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(outErrorBuf), (void*) &outErrorBuf);
-    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(outputClassBuf), (void*) &outputClassBuf);
     clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(numOfErrorsBuf), (void*) &numOfErrorsBuf);
     clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(randArrBuf), (void*) &randArrBuf);
 
