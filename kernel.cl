@@ -1,93 +1,16 @@
-#pragma OPENCL EXTENSION cl_khr_local_int32_extended_atomics : enable
-#pragma OPENCL EXTENSION cl_khr_global_int32_extended_atomics : enable
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
-
-__kernel void memset( __global uint *dst )
-{
-dst[get_global_id(0)] = get_global_id(0);
-}
-
-__kernel void minp( __global uint4 *src,
-__global uint *gmin,
-__local uint *lmin,
-__global uint *dbg,
-int nitems,
-uint dev )
-{
-// 10. Set up __global memory access pattern.
-
-    uint count = ( nitems / 4 ) / get_global_size(0);
-    uint idx = (dev == 0) ? get_global_id(0) * count : get_global_id(0);
-    uint stride = (dev == 0) ? 1 : get_global_size(0);
-    uint pmin = (uint) -1;
-
- // 11. First, compute private min, for this work-item.
-
-    for( int n=0; n < count; n++, idx += stride )
-    {
-        pmin = min( pmin, src[idx].x );
-        pmin = min( pmin, src[idx].y );
-        pmin = min( pmin, src[idx].z );
-        pmin = min( pmin, src[idx].w );
-    }
-
- // 12. Reduce min values inside work-group.
-
-    if( get_local_id(0) == 0 )
-    lmin[0] = (uint) -1;
-
-    barrier( CLK_LOCAL_MEM_FENCE );
-
-    (void) atom_min( lmin, pmin );
-
-    barrier( CLK_LOCAL_MEM_FENCE );
-
- // Write out to __global.
-
-    if( get_local_id(0) == 0 )
-    gmin[ get_group_id(0) ] = lmin[0];
-
- // Dump some debug information.
-
-    if( get_global_id(0) == 0 )
-    {
-        dbg[0] = get_num_groups(0);
-        dbg[1] = get_global_size(0);
-        dbg[2] = count;
-        dbg[3] = stride;
-    }
- }
-
-// 13. Reduce work-group min values from __global to __global.
-
-__kernel void reduce( __global uint4 *src,
-__global uint *gmin )
-{
-    (void) atom_min( gmin, gmin[get_global_id(0)] ) ;
-}
-
-
-double logistic(double x, double t)
-{
-    if( x >   37.*t )  return 1.;
-    if( x < -115.*t )  return 0.;
-    return 1. / ( 1. + exp(-x/t) );
-}
-
 
 __kernel void leaveOneOut(
 constant double * params0,
 global double * matrix, //NumberOfVectors * (NetLength+2),
 constant int * params1,
-private double * weight, //NumberOfClasses * (NetLength+1)
-private int * mixNum,
-private double * output,
+global double * weight, //NumberOfClasses * (NetLength+1)
+/*private*/ global int * mixNum,
+/*private*/ global double * output,
 global int * answer,
 global double * outError,
-private double * outputClass,
+/*private*/ global double * outputClass,
 global double * NumberOfErrors,
-global int * NumOfThread,
-global int * NumOfVectorToSkip,
 constant int * randArr)
 {
 
@@ -98,14 +21,10 @@ constant int * randArr)
     int NumOfClasses = params1[1];
     int NetLength = params1[2];
 
-    int vecNum;
     double currentError = 2. * ecrit;
     int type=0;
     int randCounter = 12*get_global_id(0);
 
-    NumOfThread[get_global_id(0)] = get_global_id(0);
-
-    NumOfVectorToSkip[get_global_id(0)] = get_global_id(0);/////////
     outError[get_global_id(0)] = 0.;
     answer[get_global_id(0)] = 1;
 
@@ -157,11 +76,10 @@ constant int * randArr)
             }
             //        cout<<"epoch="<<epoch<<endl;
 
-            for(vecNum = 0; vecNum < NumberOfVectors; ++vecNum)
+            for(int vecNum = 0; vecNum < NumberOfVectors; ++vecNum)
             {
-                if( mixNum[vecNum] == NumOfVectorToSkip[get_global_id(0)] ) continue; //not to learn with h'th vector
+                if( mixNum[vecNum] == get_global_id(0) ) continue; //not to learn with h'th vector
 
-                continue;
                 type = round(matrix[mixNum[vecNum] * (NetLength+2) + NetLength+1]);
 
                 for(int j = 0; j<NumOfClasses; ++j) //calculate output
@@ -171,8 +89,8 @@ constant int * randArr)
                     {
                         output[j]+=weight[j * (NetLength+1) + i]*matrix[mixNum[vecNum] * (NetLength+2) + i];
                     }
-                    output[j] = logistic(output[j], temp); // unlinear logistic conformation
-//                    output[j] = 1. / ( 1. + exp(-output[j] / temp) );
+//                    output[j] = logistic(output[j], temp); // unlinear logistic conformation
+                    output[j] = 1. / ( 1. + exp(-output[j] / temp) );
                 }
 
                 //error count + weight differ
@@ -197,7 +115,6 @@ constant int * randArr)
                     }
                 }
             }
-            break;
             currentError/=NumberOfVectors;
             currentError=sqrt(currentError);
             ++epoch;
@@ -205,17 +122,17 @@ constant int * randArr)
 }
 /*
 
-    type = matrix[NumOfVectorToSkip[get_global_id(0)] * (NetLength+2) + NetLength+1];
+    type = matrix[get_global_id(0) * (NetLength+2) + NetLength+1];
     for(int j = 0; j < NumOfClasses; ++j) //calculate output //2 = numberOfTypes
     {
         outputClass[j] = 0.;
         for(int i = 0; i < NetLength; ++i)
         {
-            outputClass[j]+=weight[j * (NetLength+1) + i] * matrix[NumOfVectorToSkip[get_global_id(0)] * (NetLength+2) + i];
+            outputClass[j]+=weight[j * (NetLength+1) + i] * matrix[get_global_id(0) * (NetLength+2) + i];
         }
-        outputClass[j] += weight[j * (NetLength+1) + NetLength] * matrix[NumOfVectorToSkip[get_global_id(0)] * (NetLength+2) + NetLength];
-        outputClass[j] = logistic(outputClass[j], temp); // unlinear conformation
-    //    outputClass[j] = 1. / ( 1. + exp(-outputClass[j] / temp) );
+        outputClass[j] += weight[j * (NetLength+1) + NetLength] * matrix[get_global_id(0) * (NetLength+2) + NetLength];
+    //    outputClass[j] = logistic(outputClass[j], temp); // unlinear conformation
+        outputClass[j] = 1. / ( 1. + exp(-outputClass[j] / temp) );
     }
     bool right = 1;
     double outp = outputClass[type];
@@ -227,20 +144,20 @@ constant int * randArr)
             outp = outputClass[k];
         }
     }
-    if(!right && matrix[NumOfVectorToSkip[get_global_id(0)] * (NetLength+2) + NetLength+1]!=1.5) ++NumberOfErrors[type]; //generality
-    outError[NumOfVectorToSkip[get_global_id(0)]] = 0.;
+    if(!right && matrix[get_global_id(0) * (NetLength+2) + NetLength+1]!=1.5) ++NumberOfErrors[type]; //generality
+    outError[get_global_id(0)] = 0.;
     for(int k = 0; k < NumOfClasses; ++k)
     {
         if(k!=type)
         {
-            outError[NumOfVectorToSkip[get_global_id(0)]] += (outputClass[k] * outputClass[k]);
+            outError[get_global_id(0)] += (outputClass[k] * outputClass[k]);
         }
         else
         {
-            outError[NumOfVectorToSkip[get_global_id(0)]] += (1. - outputClass[k]) * (1. - outputClass[k]);
+            outError[get_global_id(0)] += (1. - outputClass[k]) * (1. - outputClass[k]);
         }
     }
-    outError[NumOfVectorToSkip[get_global_id(0)]] = sqrt(outError[NumOfVectorToSkip[get_global_id(0)]]);
-    answer[NumOfVectorToSkip[get_global_id(0)]] = right; //return value
+    outError[get_global_id(0)] = sqrt(outError[get_global_id(0)]);
+    answer[get_global_id(0)] = right; //return value
 }
 */
