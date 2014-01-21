@@ -4,13 +4,12 @@
 #
 #-------------------------------------------------
 
-QT       += core
+QT       += core gui
 
-QT       -= gui
 
 TARGET = myOpenCL
-CONFIG   += console
-CONFIG   -= app_bundle
+CONFIG   -= console
+#CONFIG   -= app_bundle
 
 TEMPLATE = app
 
