@@ -614,14 +614,14 @@ int main()
 //    CL_MEM_OBJECT_ALLOCATION_FAILURE;
 //    CL_OUT_OF_RESOURCES;
 //    CL_OUT_OF_HOST_MEMORY;
-    cl_double *params0 = new cl_double [3];
+    cl_float *params0 = new cl_float [3];
     params0[0] = ecrit;
     params0[1] = lrate;
     params0[2] = temp;
 
     params0Buf = clCreateBuffer(context,
                               CL_MEM_READ_ONLY|CL_MEM_COPY_HOST_PTR,
-                              sizeof(cl_double) * 3,
+                              sizeof(cl_float) * 3,
                               params0,
                               &clError);
     if (clError != CL_SUCCESS)
@@ -634,7 +634,7 @@ int main()
         cout << "Memory buffer " << bufferCounter++ << " created" << endl;
     }
 
-    double *matrixArray = new double [NumberOfVectors * (NetLength + 2)];
+    float *matrixArray = new float [NumberOfVectors * (NetLength + 2)];
     for(int i = 0; i < NumberOfVectors; ++i)
     {
         for(int j = 0; j < (NetLength + 2); ++j)
@@ -645,7 +645,7 @@ int main()
 
     matrixBuf = clCreateBuffer(context,
                               CL_MEM_READ_ONLY|CL_MEM_COPY_HOST_PTR,
-                              sizeof(cl_double) * NumberOfVectors * (NetLength + 2),
+                              sizeof(cl_float) * NumberOfVectors * (NetLength + 2),
                               matrixArray,
                               &clError);
     if (clError != CL_SUCCESS)
@@ -679,7 +679,7 @@ int main()
 
     weightBuf = clCreateBuffer(context,
                               CL_MEM_READ_WRITE,
-                              sizeof(cl_double) * NumOfClasses * (NetLength + 1),
+                              sizeof(cl_float) * NumOfClasses * (NetLength + 1),
                               NULL,
                               &clError);
     if (clError != CL_SUCCESS)
@@ -710,7 +710,7 @@ int main()
 
     outputBuf = clCreateBuffer(context,
                               CL_MEM_READ_WRITE,
-                              sizeof(cl_double) * NumOfClasses,
+                              sizeof(cl_float) * NumOfClasses,
                               NULL,
                               &clError);
     if (clError != CL_SUCCESS)
@@ -740,7 +740,7 @@ int main()
 
     outErrorBuf = clCreateBuffer(context,
                               CL_MEM_READ_WRITE,
-                              sizeof(cl_double) * global_work_size,
+                              sizeof(cl_float) * global_work_size,
                               NULL,
                               &clError);
     if (clError != CL_SUCCESS)
@@ -755,7 +755,7 @@ int main()
 
     outputClassBuf = clCreateBuffer(context,
                               CL_MEM_READ_WRITE,
-                              sizeof(cl_double) * NumOfClasses,
+                              sizeof(cl_float) * NumOfClasses,
                               NULL,
                               &clError);
     if (clError != CL_SUCCESS)
@@ -803,13 +803,17 @@ int main()
     myTime.restart();
 
 
-//    constant double * params0,
-//    global double * matrix, //NumberOfVectors * (NetLength+2),
+//    constant float * params0,
+//    global float * matrix, //NumberOfVectors * (NetLength+2),
 //    constant int * params1,
-//    global double * weight, //NumberOfClasses * (NetLength+1), too big for private or local
+//    private float * weight, //NumberOfClasses * (NetLength+1)
+
+//    local int * mixNum,
+//    global float * output,
+
 //    global int * answer,
-//    global double * outError,
-//    global double * NumberOfErrors,
+//    global float * outError,
+//    global float * NumberOfErrors,
 //    constant int * randArr
 
     int argCounter = 0;
@@ -817,8 +821,13 @@ int main()
     clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(matrixBuf), (void*) &matrixBuf);
     clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(params1Buf), (void*) &params1Buf);
     clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(weightBuf), (void*) &weightBuf);
-    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(int) * NumberOfVectors, NULL);
-    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(double) * 3, NULL);
+
+    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(mixNumBuf), (void*) &mixNumBuf);
+//    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(int) * NumberOfVectors, NULL);
+
+    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(outputBuf), (void*) &outputBuf);
+//    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(float) * 3, NULL);
+
     clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(answerBuf), (void*) &answerBuf);
     clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(outErrorBuf), (void*) &outErrorBuf);
     clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(numOfErrorsBuf), (void*) &numOfErrorsBuf);
@@ -842,7 +851,7 @@ int main()
 
     //    values to look at the results
     cl_bool *returnedAnswer;
-    cl_double *returnedError;
+    cl_float *returnedError;
 
 
     returnedAnswer = (cl_bool *) clEnqueueMapBuffer( queue,
@@ -858,12 +867,12 @@ int main()
         exit(clError);
     }
 
-    returnedError = (cl_double *) clEnqueueMapBuffer( queue,
+    returnedError = (cl_float *) clEnqueueMapBuffer( queue,
                                                   outErrorBuf,
                                                   CL_TRUE,
                                                   CL_MAP_READ,
                                                   0,
-                                                  sizeof(cl_double) * global_work_size,
+                                                  sizeof(cl_float) * global_work_size,
                                                   0, NULL, NULL, &clError );
     if (clError != CL_SUCCESS)
     {
@@ -909,7 +918,7 @@ int main()
 //        delete []matrix[i];
 //        delete []FileName[i];
     }
-    cout<<sizeof(double) << "  " << sizeof(char) << "  " << sizeof(int) <<endl;
+    cout<<sizeof(float) << "  " << sizeof(char) << "  " << sizeof(int) <<endl;
     cout << (void*)kernel_source0 << endl << matrix << endl << FileName << endl << params0 << endl << params1 << endl << matrixArray << endl << randArr << endl << NumberOfErrors << endl;
 //    delete []kernel_source0;
 //    delete []matrixArray;

@@ -1,26 +1,28 @@
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
 __kernel void leaveOneOut(
-constant double * params0,
-global double * matrix, //NumberOfVectors * (NetLength+2),
+constant float * params0,
+global float * matrix, //NumberOfVectors * (NetLength+2),
 constant int * params1,
-private double * weight, //NumberOfClasses * (NetLength+1)
-local int * mixNum,
-local double * output,
+private float * weight, //NumberOfClasses * (NetLength+1)
+
+private int * mixNum,
+private float * output,
+
 global int * answer,
-global double * outError,
-global double * NumberOfErrors,
+global float * outError,
+global float * NumberOfErrors,
 constant int * randArr)
 {
 
-    double ecrit = params0[0];
-    double lrate = params0[1];
-    double temp = params0[2];
+    float ecrit = params0[0];
+    float lrate = params0[1];
+    float temp = params0[2];
     int NumberOfVectors = params1[0];
     int NumOfClasses = params1[1];
     int NetLength = params1[2];
 
-    double currentError = 2. * ecrit;
+    float currentError = 2. * ecrit;
     int type=0;
     int randCounter = 12*get_global_id(0);
 
@@ -43,7 +45,15 @@ constant int * randArr)
     {
         mixNum[i]=i;
     }
+    barrier(CLK_LOCAL_MEM_FENCE);
+    printf("init %d\n", get_global_id(0));
+    for(int i=0; i<NumberOfVectors; ++i)
+    {
+        printf("%d ", mixNum[i]);
+    }
+    printf("\n\n");
 
+    barrier(CLK_LOCAL_MEM_FENCE);
 
 
     //NumberOfErrors = new int[NumOfClasses];
@@ -57,6 +67,10 @@ constant int * randArr)
     int a1, a2, buffer;
 
     int epoch=0;
+
+
+
+
 
         //here's all OK;
 
@@ -73,7 +87,12 @@ constant int * randArr)
                 mixNum[a2]=mixNum[a1];
                 mixNum[a1]=buffer;
             }
-            //        cout<<"epoch="<<epoch<<endl;
+            //printf mixNum
+            for(int i = 0; i < NumberOfVectors; ++i)
+            {
+//                printf("%d ", mixNum[i]);
+            }
+//            printf("\n\n");
 
             for(int vecNum = 0; vecNum < NumberOfVectors; ++vecNum)
             {
@@ -86,9 +105,9 @@ constant int * randArr)
                     output[j]=0.;
                     for(int i=0; i<NetLength+1; ++i)   // +bias, coz +1
                     {
-                        output[j]+=weight[j * (NetLength+1) + i]*matrix[mixNum[vecNum] * (NetLength+2) + i];
+                        output[j] += weight[j * (NetLength+1) + i] * matrix[ mixNum[vecNum] * (NetLength+2) + i ]; //mixNum problem - printf
                     }
-//                    output[j] = logistic(output[j], temp); // unlinear logistic conformation
+
                     output[j] = 1. / ( 1. + exp(-output[j] / temp) );
                 }
 
@@ -120,7 +139,6 @@ constant int * randArr)
         }
 
 }/*
-
     type = matrix[get_global_id(0) * (NetLength+2) + NetLength+1];
     for(int j = 0; j < NumOfClasses; ++j) //calculate output //2 = numberOfTypes
     {
@@ -134,7 +152,7 @@ constant int * randArr)
         output[j] = 1. / ( 1. + exp(-output[j] / temp) );
     }
     bool right = 1;
-    double outp = output[type];
+    float outp = output[type];
     for(int k = 0; k < NumOfClasses; ++k)
     {
         if(k != type && output[k] >= outp)
