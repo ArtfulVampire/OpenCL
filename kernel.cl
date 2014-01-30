@@ -6,7 +6,7 @@ global float * matrix, //NumberOfVectors * (NetLength+2),
 constant int * params1,
 private float * weight, //NumberOfClasses * (NetLength+1)
 
-private int * mixNum,
+local int * mixNum,
 private float * output,
 
 global int * answer,
@@ -45,15 +45,37 @@ constant int * randArr)
     {
         mixNum[i]=i;
     }
-    barrier(CLK_LOCAL_MEM_FENCE);
+
+
+/*
     printf("init %d\n", get_global_id(0));
+    if(get_global_id(0) >= 0)
+    {
     for(int i=0; i<NumberOfVectors; ++i)
     {
         printf("%d ", mixNum[i]);
     }
     printf("\n\n");
+    }
 
-    barrier(CLK_LOCAL_MEM_FENCE);
+    int a1, a2, buffer;
+    for(int i=0; i<5*NumberOfVectors; ++i)
+    {
+        a1 = randArr[(randCounter++)%953]%(NumberOfVectors);
+        a2 = randArr[(randCounter++)%911]%(NumberOfVectors);
+        buffer=mixNum[a2];
+        mixNum[a2]=mixNum[a1];
+        mixNum[a1]=buffer;
+    }
+    if(get_global_id(0) >= 0)
+    {
+    for(int i=0; i<NumberOfVectors; ++i)
+    {
+        printf("%d ", mixNum[i]);
+    }
+    printf("\n\n");
+    }
+*/
 
 
     //NumberOfErrors = new int[NumOfClasses];
@@ -68,7 +90,14 @@ constant int * randArr)
 
     int epoch=0;
 
-
+            if(get_global_id(0) == 4)
+            {
+            for(int i = 0; i < NumberOfVectors; ++i)
+            {
+                printf("%d ", mixNum[i]);
+            }
+            printf("\n\n");
+            }
 
 
 
@@ -88,11 +117,15 @@ constant int * randArr)
                 mixNum[a1]=buffer;
             }
             //printf mixNum
+            if(get_global_id(0) == 4)
+            {
             for(int i = 0; i < NumberOfVectors; ++i)
             {
-//                printf("%d ", mixNum[i]);
+                printf("%d ", mixNum[i]);
             }
-//            printf("\n\n");
+            printf("\n\n");
+            }
+            return;
 
             for(int vecNum = 0; vecNum < NumberOfVectors; ++vecNum)
             {
@@ -138,7 +171,7 @@ constant int * randArr)
             ++epoch;
         }
 
-}/*
+/*
     type = matrix[get_global_id(0) * (NetLength+2) + NetLength+1];
     for(int j = 0; j < NumOfClasses; ++j) //calculate output //2 = numberOfTypes
     {
@@ -176,7 +209,7 @@ constant int * randArr)
     }
     outError[get_global_id(0)] = sqrt(outError[get_global_id(0)]);
     answer[get_global_id(0)] = right; //return value
-
+*/
 }
 
-*/
+

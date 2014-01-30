@@ -516,6 +516,7 @@ int main()
 
 
     global_work_size = NumberOfVectors;
+    global_work_size = 8;
 
 
 
@@ -551,8 +552,6 @@ int main()
     cout << "start build program" << endl;
 
     clError = clBuildProgram( program, 1, &device, NULL, NULL, NULL); //read the options
-
-//    cout << "clBuildProgram: " << errorMessage(clError) << endl;
     char *buf = new char [0x10000];
     clGetProgramBuildInfo( program,
                            device,
@@ -562,6 +561,7 @@ int main()
                            NULL);
     cout << buf << endl;
     delete []buf;
+
     if(clError != CL_SUCCESS)
     {
         exit(clError);
@@ -634,8 +634,8 @@ int main()
         cout << "Memory buffer " << bufferCounter++ << " created" << endl;
     }
 
-    float *matrixArray = new float [NumberOfVectors * (NetLength + 2)];
-    for(int i = 0; i < NumberOfVectors; ++i)
+    float *matrixArray = new float [global_work_size * (NetLength + 2)];
+    for(int i = 0; i < global_work_size; ++i)
     {
         for(int j = 0; j < (NetLength + 2); ++j)
         {
@@ -645,7 +645,7 @@ int main()
 
     matrixBuf = clCreateBuffer(context,
                               CL_MEM_READ_ONLY|CL_MEM_COPY_HOST_PTR,
-                              sizeof(cl_float) * NumberOfVectors * (NetLength + 2),
+                              sizeof(cl_float) * global_work_size * (NetLength + 2),
                               matrixArray,
                               &clError);
     if (clError != CL_SUCCESS)
@@ -659,7 +659,7 @@ int main()
     }
 
     cl_int *params1 = new cl_int [3];
-    params1[0] = NumberOfVectors;
+    params1[0] = global_work_size;
     params1[1] = NumOfClasses;
     params1[2] = NetLength;
     params1Buf = clCreateBuffer(context,
@@ -822,8 +822,8 @@ int main()
     clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(params1Buf), (void*) &params1Buf);
     clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(weightBuf), (void*) &weightBuf);
 
-    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(mixNumBuf), (void*) &mixNumBuf);
-//    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(int) * NumberOfVectors, NULL);
+//    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(mixNumBuf), (void*) &mixNumBuf);
+    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(int) * global_work_size, NULL);
 
     clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(outputBuf), (void*) &outputBuf);
 //    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(float) * 3, NULL);
@@ -837,12 +837,14 @@ int main()
     cout << "kernelArgs are set, elapsed " << myTime.elapsed()/1000. << " sec" << endl;
     myTime.restart();
 
+    size_t local_work_size = 1;
+
     clEnqueueNDRangeKernel( queue,
                             leaveOneOutKernel,
                             1,
                             NULL,
                             &global_work_size,
-                            NULL,
+                            &local_work_size,
                             0, NULL, NULL);
 
     clFinish( queue );
@@ -882,8 +884,7 @@ int main()
 
     for(int i = 0; i < global_work_size; ++i)
     {
-        cout << "Error = " << returnedError[i] << "\tAnswer = " << returnedAnswer[i] <<endl;
-//        cout << "NumOfThread = " << returnedNumofthread[i] <<endl;
+//        cout << "Error = " << returnedError[i] << "\tAnswer = " << returnedAnswer[i] <<endl;
     }
 
     bufferCounter = 0;
@@ -913,13 +914,17 @@ int main()
 
     cout<<"end"<<endl;
 
-    for(int i=0; i<NumberOfVectors; ++i)
+    for(int i=0; i<global_work_size; ++i)
     {
 //        delete []matrix[i];
 //        delete []FileName[i];
     }
-    cout<<sizeof(float) << "  " << sizeof(char) << "  " << sizeof(int) <<endl;
-    cout << (void*)kernel_source0 << endl << matrix << endl << FileName << endl << params0 << endl << params1 << endl << matrixArray << endl << randArr << endl << NumberOfErrors << endl;
+
+
+//    cout<<sizeof(float) << "  " << sizeof(char) << "  " << sizeof(int) <<endl;
+//    cout << (void*)kernel_source0 << endl << matrix << endl << FileName << endl << params0 << endl << params1 << endl << matrixArray << endl << randArr << endl << NumberOfErrors << endl;
+
+
 //    delete []kernel_source0;
 //    delete []matrixArray;
 //    delete []matrix;
