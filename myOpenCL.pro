@@ -21,4 +21,5 @@ LIBS += -L/usr/lib/x86_64-linux-gnu
 SOURCES += main.cpp
 
 OTHER_FILES += \
-    kernel.cl
+    kernel.cl \
+    kernel2.cl

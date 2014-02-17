@@ -394,6 +394,19 @@ int main()
     QTime myTime;
     myTime.start();
     cout << "leaveOneOutCL started" << endl;
+
+
+
+
+
+
+
+
+
+
+
+
+
     NumberOfErrors = new int[NumOfClasses];
     helpString="";
     for(int i=0; i<NumOfClasses; ++i)
@@ -516,6 +529,7 @@ int main()
 
 
     global_work_size = NumberOfVectors;
+
     global_work_size = 8;
 
 
@@ -539,6 +553,7 @@ int main()
     // Perform runtime source compilation, and obtain kernel entry point.
     char * kernel_source0 = new char [20000];
     kernelFromFile(kernel_source0, "/home/michael/Qt/Projects/myOpenCL/kernel.cl");
+//    kernelFromFile(kernel_source0, "/home/michael/Qt/Projects/myOpenCL/kernel2.cl");
     const char *kernel_source = (const char*)kernel_source0;
     program = clCreateProgramWithSource( context,
                                          1,
@@ -786,7 +801,7 @@ int main()
 
     randArrBuf = clCreateBuffer(context,
                                 CL_MEM_READ_ONLY|CL_MEM_COPY_HOST_PTR,
-                                sizeof(cl_int) * 100,
+                                sizeof(cl_int) * 1000,
                                 randArr,
                                 &clError);
     if (clError != CL_SUCCESS)
@@ -817,6 +832,7 @@ int main()
 //    constant int * randArr
 
     int argCounter = 0;
+
     clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(params0Buf), (void*) &params0Buf);
     clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(matrixBuf), (void*) &matrixBuf);
     clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(params1Buf), (void*) &params1Buf);
@@ -832,6 +848,8 @@ int main()
     clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(outErrorBuf), (void*) &outErrorBuf);
     clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(numOfErrorsBuf), (void*) &numOfErrorsBuf);
     clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(randArrBuf), (void*) &randArrBuf);
+
+
 
 
     cout << "kernelArgs are set, elapsed " << myTime.elapsed()/1000. << " sec" << endl;
