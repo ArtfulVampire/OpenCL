@@ -1,151 +1,112 @@
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
+float logistic(float x, float t)
+{
+    if( x >   37.*t )  return 1.;
+    if( x < -115.*t )  return 0.;
+    return 1. / ( 1. + exp(-x/t) );
+}
+
 __kernel void leaveOneOut(
 constant float * params0,
 global float * matrix, //NumberOfVectors * (NetLength+2),
 constant int * params1,
-private float * weight, //NumberOfClasses * (NetLength+1)
+global float * weight, //NumberOfClasses * (NetLength+1)
 
 local int * mixNum,
-private float * output,
 
-global int * answer,
-global float * outError,
-global float * NumberOfErrors,
 constant int * randArr)
 {
 
-    float ecrit = params0[0];
-    float lrate = params0[1];
-    float temp = params0[2];
-    int NumberOfVectors = params1[0];
-    int NumOfClasses = params1[1];
-    int NetLength = params1[2];
+    float ecrit = params0[0]; //ok
+    float lrate = params0[1]; //ok
+    float temp = params0[2]; //OK
 
-    float currentError = 2. * ecrit;
-    int type=0;
-    int randCounter = 12*get_global_id(0);
+    int NumberOfVectors = params1[0]; //ok
+    int NumOfClasses = params1[1]; //ok
+    int NetLength = params1[2]; //ok
+    int NumToSkip = params1[3];
 
-    outError[get_global_id(0)] = 0.;
-    answer[get_global_id(0)] = 1;
+    private float output[3];
 
 
-    //set zero weights
-    //weight[(NetLength+1)*(NumOfClasses-1) + NetLength] = 0.;
-    for(int j = 0; j < NumOfClasses; ++j)
+    local float currentError;
+    currentError = 2. * ecrit;
+    private int type;
+
+    private int randCounter;
+    randCounter = 12*get_global_id(0);
+
+
+
+    if(get_global_id(0) == 0)
     {
-        for(int i = 0; i < NetLength+1; ++i)
+        for(int j = 0; j<NumOfClasses; ++j) //calculate output
         {
-            weight[j * (NetLength+1) + i] = 0.; //error?crash
+            for(int i = 0; i < NetLength+1; ++i)
+            {
+                weight[j * (NetLength+1) + i] = 0.;
+            }
+        }
+
+        for(int i=0; i<NumberOfVectors; ++i)
+        {
+            mixNum[i]=i;
         }
     }
+    barrier(CLK_LOCAL_MEM_FENCE);
 
 
-    for(int i=0; i<NumberOfVectors; ++i)
-    {
-        mixNum[i]=i;
-    }
-
-
-/*
-    printf("init %d\n", get_global_id(0));
-    if(get_global_id(0) >= 0)
-    {
-    for(int i=0; i<NumberOfVectors; ++i)
-    {
-        printf("%d ", mixNum[i]);
-    }
-    printf("\n\n");
-    }
-
-    int a1, a2, buffer;
-    for(int i=0; i<5*NumberOfVectors; ++i)
-    {
-        a1 = randArr[(randCounter++)%953]%(NumberOfVectors);
-        a2 = randArr[(randCounter++)%911]%(NumberOfVectors);
-        buffer=mixNum[a2];
-        mixNum[a2]=mixNum[a1];
-        mixNum[a1]=buffer;
-    }
-    if(get_global_id(0) >= 0)
-    {
-    for(int i=0; i<NumberOfVectors; ++i)
-    {
-        printf("%d ", mixNum[i]);
-    }
-    printf("\n\n");
-    }
-*/
-
-
-    //NumberOfErrors = new int[NumOfClasses];
-    //helpString="";
-    for(int i = 0; i < NumOfClasses; ++i)
-    {
-        NumberOfErrors[i] = 0;
-    }
 
 
     int a1, a2, buffer;
 
-    int epoch=0;
+    local int epoch;
+    epoch = 0;
+//    printf("%d\n", get_global_size(0));
 
-            if(get_global_id(0) == 4)
-            {
-            for(int i = 0; i < NumberOfVectors; ++i)
-            {
-                printf("%d ", mixNum[i]);
-            }
-            printf("\n\n");
-            }
-
-
-
-        //here's all OK;
-
-        while(currentError>ecrit)
+        while(currentError > ecrit)
         {
-            randCounter = randArr[randCounter%863]%787;
-            currentError = 0.0;
-            //mix vectors
-            for(int i=0; i<5*NumberOfVectors; ++i)
-            {
-                a1 = randArr[(randCounter++)%953]%(NumberOfVectors);
-                a2 = randArr[(randCounter++)%911]%(NumberOfVectors);
-                buffer=mixNum[a2];
-                mixNum[a2]=mixNum[a1];
-                mixNum[a1]=buffer;
-            }
-            //printf mixNum
-            if(get_global_id(0) == 4)
-            {
-            for(int i = 0; i < NumberOfVectors; ++i)
-            {
-                printf("%d ", mixNum[i]);
-            }
-            printf("\n\n");
-            }
-            return;
 
-            for(int vecNum = 0; vecNum < NumberOfVectors; ++vecNum)
+            barrier(CLK_LOCAL_MEM_FENCE);
+            if(get_global_id(0) == 0)
             {
-                if( mixNum[vecNum] == get_global_id(0) ) continue; //not to learn with h'th vector
 
-                type = round(matrix[mixNum[vecNum] * (NetLength+2) + NetLength+1]);
+                randCounter = randArr[randCounter%863]%787;
+                currentError = 0.0;
+                for(int i=0; i<5*NumberOfVectors; ++i)
+                {
+                    a1 = randArr[(randCounter++)%953]%(NumberOfVectors);
+                    a2 = randArr[(randCounter++)%911]%(NumberOfVectors);
+                    buffer=mixNum[a2];
+                    mixNum[a2]=mixNum[a1];
+                    mixNum[a1]=buffer;
+                }
+            }
+
+            barrier(CLK_LOCAL_MEM_FENCE);
+
+            for(int vecNum = get_global_id(0); vecNum < NumberOfVectors; vecNum += get_global_size(0) )
+            {
+                if( mixNum[vecNum] == NumToSkip ) continue; //not to learn with h'th vector
+
+
+
+                type = round(matrix[mixNum[vecNum] * (NetLength+2) + NetLength+1]); //OK
 
                 for(int j = 0; j<NumOfClasses; ++j) //calculate output
                 {
+                    //error somewhere here
                     output[j]=0.;
-                    for(int i=0; i<NetLength+1; ++i)   // +bias, coz +1
+                    for(int i = 0; i < NetLength+1; ++i)
                     {
-                        output[j] += weight[j * (NetLength+1) + i] * matrix[ mixNum[vecNum] * (NetLength+2) + i ]; //mixNum problem - printf
+                        output[j] += weight[j * (NetLength+1) + i] * matrix[ mixNum[vecNum] * (NetLength+2) + i ];
                     }
-
-                    output[j] = 1. / ( 1. + exp(-output[j] / temp) );
+                    output[j] = logistic(output[j], temp);
                 }
-
+                barrier(CLK_LOCAL_MEM_FENCE);
                 //error count + weight differ
-                currentError+=(1.-output[type])*(1.-output[type]);
+                currentError += (1.-output[type])*(1.-output[type]);
                 for(int i=0; i<NumOfClasses; ++i)
                 {
                     if(i!=type)
@@ -154,9 +115,14 @@ constant int * randArr)
                     }
                 }
                 //learn itself
+
+                barrier(CLK_LOCAL_MEM_FENCE);
+                if(get_global_id(0) == 0) printf("%f\n", currentError);
+
+
                 for(int i = 0; i < (NetLength+1); ++i)
                 {
-                    weight[type * (NetLength+1) + i] += lrate * (1.-output[type]) * matrix[mixNum[vecNum] * (NetLength+2) + i];
+                    weight[type * (NetLength+1) + i] += lrate * (1.-output[type]) * matrix[ mixNum[vecNum] * (NetLength+2) + i];
                     for(int k=0; k<NumOfClasses; ++k)
                     {
                         if (k!=type)
@@ -165,51 +131,20 @@ constant int * randArr)
                         }
                     }
                 }
-            }
-            currentError/=NumberOfVectors;
-            currentError=sqrt(currentError);
-            ++epoch;
-        }
 
-/*
-    type = matrix[get_global_id(0) * (NetLength+2) + NetLength+1];
-    for(int j = 0; j < NumOfClasses; ++j) //calculate output //2 = numberOfTypes
-    {
-        output[j] = 0.;
-        for(int i = 0; i < NetLength; ++i)
-        {
-            output[j]+=weight[j * (NetLength+1) + i] * matrix[get_global_id(0) * (NetLength+2) + i];
+            }
+
+            barrier(CLK_LOCAL_MEM_FENCE);
+            if(get_global_id(0) == 0)
+            {
+                currentError/=NumberOfVectors;
+                currentError=sqrt(currentError);
+                printf("epoch = %d\terror = %f\n", epoch, currentError);
+                ++epoch;
+            }
+            barrier(CLK_LOCAL_MEM_FENCE);
+
         }
-        output[j] += weight[j * (NetLength+1) + NetLength] * matrix[get_global_id(0) * (NetLength+2) + NetLength];
-    //    output[j] = logistic(output[j], temp); // unlinear conformation
-        output[j] = 1. / ( 1. + exp(-output[j] / temp) );
-    }
-    bool right = 1;
-    float outp = output[type];
-    for(int k = 0; k < NumOfClasses; ++k)
-    {
-        if(k != type && output[k] >= outp)
-        {
-            right = false;
-            outp = output[k];
-        }
-    }
-    if(!right && matrix[get_global_id(0) * (NetLength+2) + NetLength+1]!=1.5) ++NumberOfErrors[type]; //generality
-    outError[get_global_id(0)] = 0.;
-    for(int k = 0; k < NumOfClasses; ++k)
-    {
-        if(k!=type)
-        {
-            outError[get_global_id(0)] += (output[k] * output[k]);
-        }
-        else
-        {
-            outError[get_global_id(0)] += (1. - output[k]) * (1. - output[k]);
-        }
-    }
-    outError[get_global_id(0)] = sqrt(outError[get_global_id(0)]);
-    answer[get_global_id(0)] = right; //return value
-*/
 }
 
 

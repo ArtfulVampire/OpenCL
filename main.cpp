@@ -528,7 +528,7 @@ int main()
 //    }
 
 
-    global_work_size = NumberOfVectors;
+//    global_work_size = NumberOfVectors;
 
     global_work_size = 8;
 
@@ -649,8 +649,8 @@ int main()
         cout << "Memory buffer " << bufferCounter++ << " created" << endl;
     }
 
-    float *matrixArray = new float [global_work_size * (NetLength + 2)];
-    for(int i = 0; i < global_work_size; ++i)
+    float *matrixArray = new float [NumberOfVectors * (NetLength + 2)];
+    for(int i = 0; i < NumberOfVectors; ++i)
     {
         for(int j = 0; j < (NetLength + 2); ++j)
         {
@@ -660,7 +660,7 @@ int main()
 
     matrixBuf = clCreateBuffer(context,
                               CL_MEM_READ_ONLY|CL_MEM_COPY_HOST_PTR,
-                              sizeof(cl_float) * global_work_size * (NetLength + 2),
+                              sizeof(cl_float) * NumberOfVectors * (NetLength + 2),
                               matrixArray,
                               &clError);
     if (clError != CL_SUCCESS)
@@ -673,10 +673,11 @@ int main()
         cout << "Memory buffer " << bufferCounter++ << " created" << endl;
     }
 
-    cl_int *params1 = new cl_int [3];
-    params1[0] = global_work_size;
+    cl_int *params1 = new cl_int [4];
+    params1[0] = NumberOfVectors;
     params1[1] = NumOfClasses;
     params1[2] = NetLength;
+    params1[3] = 0;
     params1Buf = clCreateBuffer(context,
                               CL_MEM_READ_ONLY|CL_MEM_COPY_HOST_PTR,
                               sizeof(cl_int) * 3,
@@ -692,10 +693,11 @@ int main()
         cout << "Memory buffer " << bufferCounter++ << " created" << endl;
     }
 
+    float * weightBufArr = new float [NumOfClasses * (NetLength+1)];
     weightBuf = clCreateBuffer(context,
-                              CL_MEM_READ_WRITE,
+                              CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR,
                               sizeof(cl_float) * NumOfClasses * (NetLength + 1),
-                              NULL,
+                              weightBufArr,
                               &clError);
     if (clError != CL_SUCCESS)
     {
@@ -710,7 +712,7 @@ int main()
 
     mixNumBuf = clCreateBuffer(context,
                               CL_MEM_READ_WRITE,
-                              sizeof(cl_int) * global_work_size,
+                              sizeof(cl_int) * NumberOfVectors,
                               NULL,
                               &clError);
     if (clError != CL_SUCCESS)
@@ -740,7 +742,7 @@ int main()
 
     answerBuf = clCreateBuffer(context,
                               CL_MEM_READ_WRITE,
-                              sizeof(cl_int) * global_work_size,
+                              sizeof(cl_int) * NumberOfVectors,
                               NULL,
                               &clError);
     if (clError != CL_SUCCESS)
@@ -755,7 +757,7 @@ int main()
 
     outErrorBuf = clCreateBuffer(context,
                               CL_MEM_READ_WRITE,
-                              sizeof(cl_float) * global_work_size,
+                              sizeof(cl_float) * NumberOfVectors,
                               NULL,
                               &clError);
     if (clError != CL_SUCCESS)
@@ -836,17 +838,19 @@ int main()
     clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(params0Buf), (void*) &params0Buf);
     clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(matrixBuf), (void*) &matrixBuf);
     clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(params1Buf), (void*) &params1Buf);
+
     clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(weightBuf), (void*) &weightBuf);
+//    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(cl_float) * (NetLength+1) * NumOfClasses, NULL);
 
 //    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(mixNumBuf), (void*) &mixNumBuf);
-    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(int) * global_work_size, NULL);
+    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(int) * NumberOfVectors, NULL);
 
-    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(outputBuf), (void*) &outputBuf);
+//    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(outputBuf), (void*) &outputBuf);
 //    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(float) * 3, NULL);
 
-    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(answerBuf), (void*) &answerBuf);
-    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(outErrorBuf), (void*) &outErrorBuf);
-    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(numOfErrorsBuf), (void*) &numOfErrorsBuf);
+//    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(answerBuf), (void*) &answerBuf);
+//    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(outErrorBuf), (void*) &outErrorBuf);
+//    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(numOfErrorsBuf), (void*) &numOfErrorsBuf);
     clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(randArrBuf), (void*) &randArrBuf);
 
 
@@ -855,7 +859,7 @@ int main()
     cout << "kernelArgs are set, elapsed " << myTime.elapsed()/1000. << " sec" << endl;
     myTime.restart();
 
-    size_t local_work_size = 1;
+    size_t local_work_size = global_work_size;
 
     clEnqueueNDRangeKernel( queue,
                             leaveOneOutKernel,
@@ -870,16 +874,14 @@ int main()
 
 
     //    values to look at the results
-    cl_bool *returnedAnswer;
-    cl_float *returnedError;
+    cl_float *returnedWeight;
 
-
-    returnedAnswer = (cl_bool *) clEnqueueMapBuffer( queue,
-                                                  answerBuf,
+    returnedWeight = (cl_float *) clEnqueueMapBuffer( queue,
+                                                  weightBuf,
                                                   CL_TRUE,
                                                   CL_MAP_READ,
                                                   0,
-                                                  sizeof(cl_bool) * global_work_size,
+                                                  sizeof(cl_float) * NumOfClasses * (NetLength+1),
                                                   0, NULL, NULL, &clError );
     if (clError != CL_SUCCESS)
     {
@@ -887,53 +889,60 @@ int main()
         exit(clError);
     }
 
-    returnedError = (cl_float *) clEnqueueMapBuffer( queue,
-                                                  outErrorBuf,
-                                                  CL_TRUE,
-                                                  CL_MAP_READ,
-                                                  0,
-                                                  sizeof(cl_float) * global_work_size,
-                                                  0, NULL, NULL, &clError );
-    if (clError != CL_SUCCESS)
-    {
-        cout << "Cannot create memory buffer: " << errorMessage(clError) << endl;
-        exit(clError);
-    }
+    FILE * weights;
 
-    for(int i = 0; i < global_work_size; ++i)
-    {
-//        cout << "Error = " << returnedError[i] << "\tAnswer = " << returnedAnswer[i] <<endl;
-    }
+    helpString ="/media/Files/Data/AAX/AAX_cl_weights.wts";
+    weights=fopen(helpString.toStdString().c_str(),"w");
 
-    bufferCounter = 0;
-    clError = clEnqueueUnmapMemObject(queue,
-                                      answerBuf,
-                                      returnedAnswer,
-                                      0,
-                                      NULL,
-                                      NULL);
-    if (clError != CL_SUCCESS)
+    if(weights==NULL)
     {
-        cout << "Cannot unmap memory buffer" << bufferCounter++ << ": " << errorMessage(clError) << endl;
-        exit(clError);
+        cout<<"file to write==NULL"<<endl;
+        return -1;
     }
-    clError = clEnqueueUnmapMemObject(queue,
-                                      outErrorBuf,
-                                      returnedError,
-                                      0,
-                                      NULL,
-                                      NULL);
-    if (clError != CL_SUCCESS)
+    //save weights into files
+    for(int j=0; j<NumOfClasses; ++j)
     {
-        cout << "Cannot unmap memory buffer" << bufferCounter++ << ": " << errorMessage(clError) << endl;
-        exit(clError);
+        for(int i=0; i<NetLength; ++i)
+        {
+            fprintf(weights, "%lf\r\n", returnedWeight[j * (NetLength+1) + i]);
+        }
     }
+    for(int j=0; j<NumOfClasses; ++j)
+    {
+        fprintf(weights, "%lf\r\n", returnedWeight[(j+1) * (NetLength+1) - 1]);
+    }
+    fclose(weights);
+
+//    bufferCounter = 0;
+//    clError = clEnqueueUnmapMemObject(queue,
+//                                      answerBuf,
+//                                      returnedAnswer,
+//                                      0,
+//                                      NULL,
+//                                      NULL);
+//    if (clError != CL_SUCCESS)
+//    {
+//        cout << "Cannot unmap memory buffer" << bufferCounter++ << ": " << errorMessage(clError) << endl;
+//        exit(clError);
+//    }
+//    clError = clEnqueueUnmapMemObject(queue,
+//                                      outErrorBuf,
+//                                      returnedError,
+//                                      0,
+//                                      NULL,
+//                                      NULL);
+//    if (clError != CL_SUCCESS)
+//    {
+//        cout << "Cannot unmap memory buffer" << bufferCounter++ << ": " << errorMessage(clError) << endl;
+//        exit(clError);
+//    }
 
 
     cout<<"end"<<endl;
 
-    for(int i=0; i<global_work_size; ++i)
+    for(int i=0; i<NumberOfVectors; ++i)
     {
+//        cout << returnedAnswer[i] << "\t" << returnedError[i] << endl;
 //        delete []matrix[i];
 //        delete []FileName[i];
     }
