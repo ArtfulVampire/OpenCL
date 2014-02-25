@@ -530,7 +530,7 @@ int main()
 
 //    global_work_size = NumberOfVectors;
 
-    global_work_size = 8;
+    global_work_size = 100;
 
 
 
@@ -552,8 +552,8 @@ int main()
 
     // Perform runtime source compilation, and obtain kernel entry point.
     char * kernel_source0 = new char [20000];
-    kernelFromFile(kernel_source0, "/home/michael/Qt/Projects/myOpenCL/kernel.cl");
-//    kernelFromFile(kernel_source0, "/home/michael/Qt/Projects/myOpenCL/kernel2.cl");
+//    kernelFromFile(kernel_source0, "/home/michael/Qt/Projects/myOpenCL/kernel.cl");
+    kernelFromFile(kernel_source0, "/home/michael/Qt/Projects/myOpenCL/kernel2.cl");
     const char *kernel_source = (const char*)kernel_source0;
     program = clCreateProgramWithSource( context,
                                          1,
@@ -709,6 +709,21 @@ int main()
         cout << "Memory buffer " << bufferCounter++ << " created" << endl;
     }
 
+    cl_mem currErrBuf = clCreateBuffer(context,
+                              CL_MEM_READ_WRITE,
+                              sizeof(cl_int),
+                              NULL,
+                              &clError);
+    if (clError != CL_SUCCESS)
+    {
+        cout << "Cannot create memory buffer " << bufferCounter << " : " << errorMessage(clError) << endl;
+        exit(clError);
+    }
+    else
+    {
+        cout << "Memory buffer " << bufferCounter++ << " created" << endl;
+    }
+
 
     mixNumBuf = clCreateBuffer(context,
                               CL_MEM_READ_WRITE,
@@ -842,10 +857,13 @@ int main()
     clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(weightBuf), (void*) &weightBuf);
 //    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(cl_float) * (NetLength+1) * NumOfClasses, NULL);
 
-//    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(mixNumBuf), (void*) &mixNumBuf);
-    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(int) * NumberOfVectors, NULL);
+    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(currErrBuf), (void*) &currErrBuf);
+    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(syncBuf), (void*) &syncBuf);
 
-//    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(outputBuf), (void*) &outputBuf);
+    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(mixNumBuf), (void*) &mixNumBuf);
+//    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(int) * NumberOfVectors, NULL);
+
+    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(outputBuf), (void*) &outputBuf);
 //    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(float) * 3, NULL);
 
 //    clSetKernelArg(leaveOneOutKernel, argCounter++, sizeof(answerBuf), (void*) &answerBuf);
@@ -859,7 +877,9 @@ int main()
     cout << "kernelArgs are set, elapsed " << myTime.elapsed()/1000. << " sec" << endl;
     myTime.restart();
 
-    size_t local_work_size = global_work_size;
+
+    global_work_size = NetLength+1;
+    size_t local_work_size = 1;
 
     clEnqueueNDRangeKernel( queue,
                             leaveOneOutKernel,
@@ -938,7 +958,8 @@ int main()
 //    }
 
 
-    cout<<"end"<<endl;
+    cout << "end\ttime elapsed " << myTime.elapsed()/1000. <<" sec" << endl;
+
 
     for(int i=0; i<NumberOfVectors; ++i)
     {

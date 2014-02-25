@@ -7,6 +7,8 @@ float logistic(float x, float t)
     return 1. / ( 1. + exp(-x/t) );
 }
 
+//each thread deals with his input vector (~150)
+
 __kernel void leaveOneOut(
 constant float * params0,
 global float * matrix, //NumberOfVectors * (NetLength+2),
@@ -63,8 +65,6 @@ constant int * randArr)
 
     local int epoch;
     epoch = 0;
-//    printf("%d\n", get_global_size(0));
-
         while(currentError > ecrit)
         {
 
@@ -83,7 +83,6 @@ constant int * randArr)
                     mixNum[a1]=buffer;
                 }
             }
-
             barrier(CLK_LOCAL_MEM_FENCE);
 
             for(int vecNum = get_global_id(0); vecNum < NumberOfVectors; vecNum += get_global_size(0) )
@@ -117,7 +116,6 @@ constant int * randArr)
                 //learn itself
 
                 barrier(CLK_LOCAL_MEM_FENCE);
-                if(get_global_id(0) == 0) printf("%f\n", currentError);
 
 
                 for(int i = 0; i < (NetLength+1); ++i)
